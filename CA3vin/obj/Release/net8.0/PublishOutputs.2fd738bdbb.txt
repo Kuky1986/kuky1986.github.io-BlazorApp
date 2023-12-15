@@ -1,0 +1,1 @@
+C:\Users\karlo\source\repos\CA3vin\CA3\CA3vin\bin\Release\net8.0\publish\web.config

@@ -1,0 +1,208 @@
+﻿@page "/VINurl"
+
+<PageTitle>VIN URL</PageTitle>
+<h3>VINurl</h3>
+
+@inject HttpClient httpClient
+
+@inject IJSRuntime JSRuntime
+
+
+<div class="container">
+	<div class="input-section">
+		
+		<input @bind="imageUrl" placeholder="Enter image URL" />
+		<select @bind="selectedValue">
+			<option value="d0">North American</option>
+			<option value="d1">Europe</option>
+			<option value="d2">Aisa</option>
+			<option value="d3">Rest</option>
+		</select>
+		<button @onclick="SendPostUrlRequest">Check url image for VIN</button>
+		
+	</div>
+
+
+	<div class="result-section">
+		@if (root != null && root.status == "SUCCESS")
+		{
+			<p><strong>Service:</strong> @root.service</p>
+			<p><strong>Version:</strong> @root.version</p>
+			<p><strong>Date:</strong> @root.date</p>
+			<p><strong>Status:</strong> @root.status</p>
+			<p><strong>VIN Captured:</strong> @root.vin_captured</p>
+
+			<div class="vin-decode">
+				<p><strong>VIN Decode Information:</strong></p>
+				<p><strong>Status:</strong> @root.vindecode.status</p>
+				<p><strong>Make:</strong> @root.vindecode.make</p>
+				<p><strong>Model:</strong> @root.vindecode.model</p>
+				<p><strong>Year:</strong> @root.vindecode.year</p>
+			</div>
+
+			<p><strong>Location:</strong></p>
+			<p>
+				Left: @root.left, Top: @root.top
+				Width: @root.width, Height: @root.height
+			</p>
+		
+			@if(vinInfo)
+			{
+				<button @onclick="DownloadAsText">Download as Text</button>
+			}
+
+		}
+		else if (root != null && root.status != "SUCCESS")
+		{
+			<p><strong>Error:</strong> @root.status</p>
+		}
+		else
+		{
+			<p>No response yet. Click the button to send a request.</p>
+		}
+	</div>
+
+</div>
+
+
+<style>
+	.container {
+		display: flex;
+		justify-content: space-around;
+		margin: 20px;
+	}
+
+	.input-section {
+		width: 40%;
+	}
+
+	.result-section {
+		width: 60%;
+		background-color: #0078D4; /* Navbar color */
+		color: white; /* Text color on navbar */
+		padding: 20px;
+		border-radius: 5px;
+	}
+
+	.vin-decode {
+		margin-left: 20px;
+	}
+
+	button {
+		background-color: #4CAF50; /* Green */
+		color: white;
+		border: none;
+		border-radius: 5px;
+		cursor: pointer;
+	}
+
+		button:hover {
+			background-color: #45a049;
+		}
+</style>
+
+@code {
+	@using System.Net.Http
+
+	@using System.Text.Json
+
+	@using System.Net.Http.Headers;
+
+	@using Microsoft.AspNetCore.Components.Forms
+
+	@using CA3vin.Models;
+
+
+	private string selectedValue;
+
+	private string responseBody;
+
+	private string imageUrl;
+
+	private Models.Root root;
+
+	private bool vinInfo = false;
+
+	private async Task SendPostUrlRequest()
+	{
+		try
+		{
+			var request = new HttpRequestMessage
+				{
+					Method = HttpMethod.Post,
+					RequestUri = new Uri("https://vin-recognition.p.rapidapi.com/v2"),
+					Headers =
+				{
+					{ "X-RapidAPI-Key", "ddd16e73e4mshe813f791f4b68b7p15f359jsna5c36b987855" },
+					{ "X-RapidAPI-Host", "vin-recognition.p.rapidapi.com" },
+				},
+					Content = new MultipartFormDataContent
+				{
+					new StringContent(imageUrl)
+					{
+						Headers =
+						{
+							ContentDisposition = new ContentDispositionHeaderValue("form-data")
+							{
+								Name = "inputurl",
+							}
+						}
+					},
+				},
+				};
+
+			using (var response = await httpClient.SendAsync(request))
+			{
+				response.EnsureSuccessStatusCode();
+				responseBody = await response.Content.ReadAsStringAsync();
+				root = JsonSerializer.Deserialize<Models.Root>(responseBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+				vinInfo = true;
+			}
+		}
+		catch (Exception ex)
+		{
+			responseBody = $"Error: {ex.Message}";
+		}
+	}
+
+	protected override async Task OnInitializedAsync()
+	{
+		// Import the JavaScript file
+		await JSRuntime.InvokeVoidAsync("import", "/downloadFile.js");
+	}
+
+	private string GenerateTextContent()
+	{
+		// Generate your text content based on your JSON data or other sources
+		return $"Service: {root.service}\r\n" +
+					$"Version: {root.version}\r\n" +
+					$"Date: {root.date}\r\n" +
+					// Add other properties as needed
+					$"VIN Captured: {root.vin_captured}\r\n" +
+					// Include VIN Decode Information
+					$"VIN Decode Information:\r\n" +
+					$"Status: {root.vindecode.status}\r\n" +
+					$"Make: {root.vindecode.make}\r\n" +
+					$"Model: {root.vindecode.model}\r\n" +
+					$"Year: {root.vindecode.year}\r\n" +
+					// Include location
+					$"Location:\r\n" +
+					$"Left: {root.left}, Top: {root.top}\r\n" +
+					$"Width: {root.width}, Height: {root.height}";
+	}
+
+	private async Task DownloadAsText()
+	{
+		try
+		{
+			var content = GenerateTextContent();
+			await JSRuntime.InvokeVoidAsync("downloadFile", content, "downloadedFile.txt", "text/plain");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Error downloading file: {ex.Message}");
+		}
+
+	}
+
+}
